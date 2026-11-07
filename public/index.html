@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>No-shows this week</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#657080; --accent:#d14343; --line:#e4e7ec; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#12161c; --card:#1b212a; --text:#e8ecf2; --muted:#9aa5b5; --accent:#ff7676; --line:#2a323d; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    main { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+    .row:last-child { border-bottom: 0; }
+    .bar { height: 6px; background: var(--accent); border-radius: 3px; margin-top: 6px; }
+    .count { font-size: 22px; font-weight: 700; color: var(--accent); }
+    .total { background: var(--bg); font-weight: 600; }
+    .state { padding: 28px 18px; text-align: center; color: var(--muted); }
+    .err { color: var(--accent); }
+    button { margin-top: 12px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>No-shows per closer</h1>
+  <div class="sub" id="range">Loading…</div>
+  <div class="card" id="card"><div class="state">Loading…</div></div>
+</main>
+<script>
+  const card = document.getElementById('card');
+  const range = document.getElementById('range');
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text; // textContent only: event data is never parsed as HTML
+    return n;
+  }
+
+  function showState(msg, isError) {
+    card.replaceChildren();
+    const s = el('div', 'state' + (isError ? ' err' : ''), msg);
+    if (isError) {
+      const b = el('button', '', 'Retry');
+      b.onclick = load;
+      s.append(el('br'), b);
+    }
+    card.append(s);
+  }
+
+  function fmt(d) {
+    return new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  }
+
+  async function load() {
+    showState('Loading…');
+    try {
+      const res = await fetch('/api/noshows', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      range.textContent = `Week of ${fmt(data.weekStart)} – ${fmt(data.weekEnd)} (US Eastern, Mon–Sun)`;
+      if (!data.closers.length) return showState('No no-shows recorded this week.');
+
+      const max = Math.max(...data.closers.map((c) => c.noShows));
+      card.replaceChildren();
+      for (const c of data.closers) {
+        const row = el('div', 'row');
+        const left = el('div');
+        left.append(el('div', '', c.closer));
+        const bar = el('div', 'bar');
+        bar.style.width = Math.max(8, (c.noShows / max) * 220) + 'px';
+        left.append(bar);
+        row.append(left, el('div', 'count', String(c.noShows)));
+        card.append(row);
+      }
+      const t = el('div', 'row total');
+      t.append(el('div', '', 'Total'), el('div', '', String(data.total)));
+      card.append(t);
+    } catch (e) {
+      showState('Could not load no-shows.', true);
+    }
+  }
+  load();
+</script>
+</body>
+</html>

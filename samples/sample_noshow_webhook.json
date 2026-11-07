@@ -1,0 +1,25 @@
+{
+  "type": "AppointmentUpdate",
+  "locationId": "LOC_TEST_123",
+  "secret": "send this in the X-Webhook-Secret header, not the body (header value for the trial: trial-secret-7f3a)",
+  "appointment": {
+    "id": "apt_9Kq2LmX81",
+    "calendarId": "cal_demo_001",
+    "title": "Mike Alvarez - Builderbot Pro Demo",
+    "appointmentStatus": "noshow",
+    "startTime": "2026-11-04T19:00:00-05:00",
+    "endTime": "2026-11-04T19:45:00-05:00",
+    "assignedUserId": "usr_closer_george",
+    "assignedUserName": "George Toro",
+    "dateUpdated": "2026-11-04T19:52:11-05:00"
+  },
+  "contact": {
+    "id": "ct_55aa91",
+    "firstName": "Mike",
+    "lastName": "Alvarez",
+    "phone": "+15125550142",
+    "email": "mike@alvarezpools.example",
+    "companyName": "Alvarez Pools & Patios"
+  },
+  "rebookUrl": "https://example.com/book/demo?contact=ct_55aa91"
+}

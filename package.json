@@ -1,0 +1,12 @@
+{
+  "name": "noshow-followup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "No-show webhook -> Slack follow-up + weekly per-closer view",
+  "scripts": {
+    "test": "node --test",
+    "dev": "node dev.js",
+    "bug": "node daily_totals.js"
+  },
+  "engines": { "node": ">=18" }
+}
