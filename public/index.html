@@ -3,89 +3,541 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>No-shows this week</title>
+  <title>No-shows · Closer dashboard</title>
+  <meta name="description" content="No-shows per closer this week, from the no-show webhook.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M10 12h12M10 16h8M10 20h5' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
   <style>
-    :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#657080; --accent:#d14343; --line:#e4e7ec; }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg:#12161c; --card:#1b212a; --text:#e8ecf2; --muted:#9aa5b5; --accent:#ff7676; --line:#2a323d; }
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f8;
+      --card: #ffffff;
+      --card-2: #f9fafb;
+      --text: #0f1623;
+      --text-2: #4a5464;
+      --muted: #6b7584;
+      --line: #e6e8ec;
+      --line-2: #eff1f4;
+      --bar: #2a78d6;
+      --bar-soft: #cde2fb;
+      --bar-hover: #1c5cab;
+      --good: #15803d;
+      --good-bg: #e8f6ed;
+      --warn: #a15c07;
+      --warn-bg: #fdf3e2;
+      --bad: #c53030;
+      --bad-bg: #fdecec;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+      --skeleton: #eceef2;
     }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #0d1117;
+        --card: #161b22;
+        --card-2: #1b2129;
+        --text: #eef1f5;
+        --text-2: #c2c9d3;
+        --muted: #8b95a5;
+        --line: #272e38;
+        --line-2: #20262f;
+        --bar: #3987e5;
+        --bar-soft: #1c3a63;
+        --bar-hover: #6da7ec;
+        --good: #4ade80;
+        --good-bg: #12301f;
+        --warn: #f5b041;
+        --warn-bg: #352610;
+        --bad: #f87171;
+        --bad-bg: #3a1717;
+        --shadow: none;
+        --skeleton: #222932;
+      }
+    }
+
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-    main { max-width: 640px; margin: 48px auto; padding: 0 16px; }
-    h1 { font-size: 22px; margin: 0 0 4px; }
-    .sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-    .row { display:flex; justify-content:space-between; align-items:center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-    .row:last-child { border-bottom: 0; }
-    .bar { height: 6px; background: var(--accent); border-radius: 3px; margin-top: 6px; }
-    .count { font-size: 22px; font-weight: 700; color: var(--accent); }
-    .total { background: var(--bg); font-weight: 600; }
-    .state { padding: 28px 18px; text-align: center; color: var(--muted); }
-    .err { color: var(--accent); }
-    button { margin-top: 12px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    main { max-width: 1120px; margin: 0 auto; padding: 28px 20px 40px; }
+
+    /* ---------- header ---------- */
+    header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--bar); display: grid; place-items: center; flex: none; }
+    h1 { font-size: 20px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
+    .tag { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .live { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; padding: 6px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); position: relative; }
+    .dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--good); opacity: 0; animation: ping 2.4s ease-out infinite; }
+    .live.paused .dot { background: var(--muted); }
+    .live.paused .dot::after { display: none; }
+    @keyframes ping { 0% { transform: scale(.6); opacity: .7; } 100% { transform: scale(1.6); opacity: 0; } }
+    .weeknav { display: inline-flex; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .weeknav button { border: 0; background: none; color: var(--text); padding: 7px 11px; cursor: pointer; font: inherit; }
+    .weeknav button:hover:not(:disabled) { background: var(--card-2); }
+    .weeknav button:disabled { color: var(--muted); opacity: .45; cursor: default; }
+    .weeknav .label { padding: 7px 12px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); font-weight: 600; white-space: nowrap; min-width: 150px; text-align: center; }
+    .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 7px 12px; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 500; }
+    .btn:hover { background: var(--card-2); }
+    button:focus-visible { outline: 2px solid var(--bar); outline-offset: 2px; }
+
+    /* ---------- cards ---------- */
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+    .card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px 18px 0; }
+    .card-h h2 { font-size: 14px; margin: 0; font-weight: 600; }
+    .card-h .hint { color: var(--muted); font-size: 12.5px; }
+    .card-b { padding: 14px 18px 18px; }
+
+    /* ---------- KPI tiles ---------- */
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+    .kpi { padding: 16px 18px; }
+    .kpi .label { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+    .kpi .value { font-size: 30px; font-weight: 650; letter-spacing: -.02em; margin: 6px 0 4px; line-height: 1.1; }
+    .kpi .value small { font-size: 15px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+    .kpi .foot { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+    .delta { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; padding: 1px 7px; border-radius: 999px; font-size: 12px; }
+    .delta.up { color: var(--bad); background: var(--bad-bg); }
+    .delta.down { color: var(--good); background: var(--good-bg); }
+    .delta.flat { color: var(--text-2); background: var(--line-2); }
+    .meter { height: 6px; border-radius: 999px; background: var(--line-2); overflow: hidden; margin-top: 8px; }
+    .meter > span { display: block; height: 100%; border-radius: 999px; background: var(--good); transition: width .5s ease; }
+
+    /* ---------- layout ---------- */
+    .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+
+    /* ---------- day chart ---------- */
+    .chart { position: relative; height: 210px; display: grid; grid-template-columns: 28px 1fr; }
+    .yaxis { position: relative; height: 170px; color: var(--muted); font-size: 11px; }
+    .yaxis span { position: absolute; right: 8px; transform: translateY(-50%); }
+    .plot { position: relative; height: 170px; }
+    .gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line-2); }
+    .gridline.base { border-top-color: var(--line); }
+    .cols { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); }
+    .col { position: relative; display: flex; justify-content: center; align-items: flex-end; cursor: default; }
+    .col:hover { background: linear-gradient(to top, var(--line-2), transparent); border-radius: 8px 8px 0 0; }
+    .barv { width: min(34px, 56%); border-radius: 4px 4px 0 0; background: var(--bar); transition: height .45s cubic-bezier(.2, .8, .2, 1), background .15s; min-height: 0; }
+    .col:hover .barv { background: var(--bar-hover); }
+    .barv.zero { height: 2px !important; background: var(--line); border-radius: 2px; }
+    .vlabel { position: absolute; font-size: 12px; font-weight: 600; color: var(--text); transform: translateY(-4px); }
+    .xaxis { grid-column: 2; display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; padding-top: 8px; font-size: 12px; color: var(--muted); }
+    .xaxis .d { font-size: 11px; }
+    .xaxis .today { color: var(--text); font-weight: 650; }
+    .xaxis .today .d::after { content: " · today"; }
+    .tooltip { position: absolute; pointer-events: none; background: var(--text); color: var(--card); font-size: 12px; padding: 6px 9px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -100%); opacity: 0; transition: opacity .12s; z-index: 5; }
+    .tooltip b { font-weight: 650; }
+
+    /* ---------- closers ---------- */
+    .closer { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line-2); }
+    .closer:first-child { border-top: 0; padding-top: 2px; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 12.5px; background: var(--bar-soft); color: var(--text); }
+    .cname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .crow2 { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+    .track { flex: 1; height: 6px; background: var(--line-2); border-radius: 999px; overflow: hidden; }
+    .track > span { display: block; height: 100%; background: var(--bar); border-radius: 999px; transition: width .5s ease; }
+    .strip { display: flex; gap: 2px; flex: none; }
+    .strip i { width: 9px; height: 9px; border-radius: 2px; background: var(--line-2); }
+    .strip i.on { background: var(--bar); }
+    .ccount { text-align: right; }
+    .ccount .n { font-size: 20px; font-weight: 650; line-height: 1; }
+    .ccount .s { font-size: 11.5px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+
+    /* ---------- recent ---------- */
+    .feed { list-style: none; margin: 0; padding: 0; }
+    .feed li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 18px; border-top: 1px solid var(--line-2); }
+    .feed li:first-child { border-top: 0; }
+    .feed .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--bad-bg); color: var(--bad); }
+    .feed .what { overflow: hidden; }
+    .feed .what b { font-weight: 600; }
+    .feed .when { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .pill.ok { color: var(--good); background: var(--good-bg); }
+    .pill.pending { color: var(--warn); background: var(--warn-bg); }
+    .feed li.fresh { animation: fresh 2.6s ease-out; }
+    @keyframes fresh { 0% { background: var(--bar-soft); } 100% { background: transparent; } }
+
+    /* ---------- states ---------- */
+    .empty { text-align: center; padding: 34px 18px; color: var(--muted); }
+    .empty .big { color: var(--text); font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; margin-bottom: 14px; border-radius: 12px; background: var(--bad-bg); color: var(--bad); font-weight: 500; }
+    .sk { background: var(--skeleton); border-radius: 6px; animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .55; } }
+
+    footer { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; padding-top: 6px; }
+    footer a { color: inherit; }
+
+    @media (max-width: 900px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 520px) {
+      main { padding: 20px 16px 32px; }
+      .kpis { gap: 10px; }
+      .kpi { padding: 14px; }
+      .kpi .value { font-size: 22px; overflow-wrap: anywhere; }
+      .kpi .foot { flex-wrap: wrap; }
+      .card-h .hint { display: none; }
+      .weeknav .label { min-width: 0; }
+      .feed li { grid-template-columns: minmax(0, 1fr) auto; }
+      .feed .ico { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::after { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
 <main>
-  <h1>No-shows per closer</h1>
-  <div class="sub" id="range">Loading…</div>
-  <div class="card" id="card"><div class="state">Loading…</div></div>
-</main>
-<script>
-  const card = document.getElementById('card');
-  const range = document.getElementById('range');
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M10 13.5l4 4M14 13.5l-4 4"/></svg>
+      </div>
+      <div>
+        <h1>No-show follow-up</h1>
+        <div class="tag">BuilderBot Pro · no-shows per closer</div>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="live" id="live" title="Refreshes every 15 seconds while this tab is open">
+        <span class="dot" aria-hidden="true"></span><span id="liveText">Connecting…</span>
+      </span>
+      <div class="weeknav" role="group" aria-label="Choose week">
+        <button id="prev" aria-label="Previous week">&#8249;</button>
+        <div class="label num" id="weekLabel">This week</div>
+        <button id="next" aria-label="Next week">&#8250;</button>
+      </div>
+      <button class="btn" id="thisWeek" hidden>This week</button>
+    </div>
+  </header>
 
+  <div id="banner" hidden></div>
+
+  <section class="kpis" aria-label="Summary">
+    <div class="card kpi">
+      <div class="label">No-shows</div>
+      <div class="value num" id="kTotal"><span class="sk" style="display:inline-block;width:48px;height:30px"></span></div>
+      <div class="foot" id="kTotalFoot"></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Slack follow-ups sent</div>
+      <div class="value num" id="kSent"><span class="sk" style="display:inline-block;width:64px;height:30px"></span></div>
+      <div class="meter" aria-hidden="true"><span id="kSentMeter" style="width:0"></span></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Closers with a no-show</div>
+      <div class="value num" id="kClosers"><span class="sk" style="display:inline-block;width:36px;height:30px"></span></div>
+      <div class="foot" id="kClosersFoot"></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">Busiest day</div>
+      <div class="value" id="kBusy"><span class="sk" style="display:inline-block;width:60px;height:30px"></span></div>
+      <div class="foot" id="kBusyFoot"></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-h"><h2>No-shows by day</h2><span class="hint">Appointment date, US Eastern</span></div>
+      <div class="card-b">
+        <div class="chart" id="chart" role="img" aria-label="No-shows by day">
+          <div class="yaxis" id="yaxis"></div>
+          <div class="plot" id="plot"></div>
+          <div class="xaxis" id="xaxis"></div>
+          <div class="tooltip" id="tip" role="status"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h2>By closer</h2><span class="hint">Most no-shows first</span></div>
+      <div class="card-b" id="closers">
+        <div class="sk" style="height:44px;margin-bottom:10px"></div>
+        <div class="sk" style="height:44px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:14px">
+    <div class="card-h"><h2>Recent no-shows</h2><span class="hint">Newest first · contact details stay in Slack</span></div>
+    <div class="card-b" style="padding:8px 0 6px">
+      <ul class="feed" id="feed"><li><div class="sk" style="height:30px;grid-column:1/-1"></div></li></ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>Weeks run Monday to Sunday in US Eastern time. This page is public, so it shows counts and closer names only.</span>
+    <span id="lastEvent"></span>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const REFRESH_MS = 15000;
+  const $ = (id) => document.getElementById(id);
+  let state = { week: new URLSearchParams(location.search).get('week'), data: null, loadedAt: 0, seen: null, timer: null };
+
+  // All event data goes in via textContent, never innerHTML.
   function el(tag, cls, text) {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (text !== undefined) n.textContent = text; // textContent only: event data is never parsed as HTML
+    if (text !== undefined) n.textContent = text;
     return n;
   }
+  const svgNS = 'http://www.w3.org/2000/svg';
+  function icon(path, size = 16) {
+    const s = document.createElementNS(svgNS, 'svg');
+    s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2.2');
+    s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); s.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS(svgNS, 'path'); p.setAttribute('d', path); s.append(p);
+    return s;
+  }
+  const ICON = {
+    check: 'M5 12.5l4.5 4.5L19 7.5',
+    clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+    miss: 'M15 9l-6 6M9 9l6 6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+  };
 
-  function showState(msg, isError) {
-    card.replaceChildren();
-    const s = el('div', 'state' + (isError ? ' err' : ''), msg);
-    if (isError) {
-      const b = el('button', '', 'Retry');
-      b.onclick = load;
-      s.append(el('br'), b);
-    }
-    card.append(s);
+  const dayFmt = (ymd, opts) => new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', ...opts });
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+  function shiftWeek(ymd, weeks) {
+    return new Date(new Date(ymd + 'T12:00:00Z').getTime() + weeks * 7 * 86400000).toISOString().slice(0, 10);
+  }
+  function ago(iso) {
+    if (!iso) return '';
+    const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if (s < 10) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.round(s / 60); if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60); if (h < 48) return `${h} h ago`;
+    return `${Math.round(h / 24)} days ago`;
   }
 
-  function fmt(d) {
-    return new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  // ---------- render ----------
+  function renderHeader(d) {
+    const sameMonth = d.weekStart.slice(0, 7) === d.weekEnd.slice(0, 7);
+    const range = `${dayFmt(d.weekStart, { month: 'short', day: 'numeric' })} – ${dayFmt(d.weekEnd, sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
+    $('weekLabel').textContent = d.isCurrentWeek ? `This week · ${range}` : range;
+    $('next').disabled = d.isCurrentWeek;
+    $('thisWeek').hidden = d.isCurrentWeek;
+    document.title = `${d.total ? `(${d.total}) ` : ''}No-shows · Closer dashboard`;
+  }
+
+  function renderKpis(d) {
+    $('kTotal').textContent = d.total;
+    const foot = $('kTotalFoot'); foot.replaceChildren();
+    const diff = d.total - d.prevTotal;
+    const delta = el('span', 'delta ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'),
+      diff > 0 ? `▲ ${diff}` : diff < 0 ? `▼ ${-diff}` : 'No change');
+    foot.append(delta, el('span', '', `vs ${d.isCurrentWeek ? 'last' : 'previous'} week (${d.prevTotal})`));
+
+    const sent = $('kSent'); sent.replaceChildren();
+    if (d.total) {
+      sent.append(String(d.followUpsSent), el('small', '', ` / ${d.total} · ${Math.round((d.followUpsSent / d.total) * 100)}%`));
+    } else sent.textContent = '—';
+    $('kSentMeter').style.width = d.total ? `${(d.followUpsSent / d.total) * 100}%` : '0';
+
+    $('kClosers').textContent = d.closers.length;
+    $('kClosersFoot').textContent = d.closers.length
+      ? `Most: ${d.closers[0].closer} (${d.closers[0].noShows})` : (d.isCurrentWeek ? 'None this week' : 'None that week');
+
+    const peak = Math.max(...d.days.map((x) => x.count));
+    const busiest = peak ? d.days.filter((x) => x.count === peak) : [];
+    if (!busiest.length) {
+      $('kBusy').textContent = '—';
+      $('kBusyFoot').textContent = 'No no-shows yet';
+    } else if (busiest.length === 1) {
+      $('kBusy').textContent = dayFmt(busiest[0].date, { weekday: 'long' });
+      $('kBusyFoot').textContent = `${plural(peak, 'no-show')} on ${dayFmt(busiest[0].date, { month: 'short', day: 'numeric' })}`;
+    } else {
+      $('kBusy').textContent = busiest.slice(0, 3).map((x) => x.label).join(' & ') + (busiest.length > 3 ? ' +' : '');
+      $('kBusyFoot').textContent = `Tied at ${plural(peak, 'no-show')} each`;
+    }
+  }
+
+  function renderChart(d) {
+    const max = Math.max(...d.days.map((x) => x.count));
+    const top = Math.max(2, max + (max >= 4 ? Math.ceil(max * 0.15) : 1)); // headroom for value labels
+    const ticks = top <= 4 ? [...Array(top + 1).keys()] : [0, Math.round(top / 2), top];
+
+    const yaxis = $('yaxis'); yaxis.replaceChildren();
+    const plot = $('plot'); plot.replaceChildren();
+    for (const t of ticks) {
+      const y = 100 - (t / top) * 100;
+      const lab = el('span', 'num', String(t)); lab.style.top = y + '%'; yaxis.append(lab);
+      const g = el('div', 'gridline' + (t === 0 ? ' base' : '')); g.style.top = y + '%'; plot.append(g);
+    }
+
+    const cols = el('div', 'cols');
+    const tip = $('tip');
+    d.days.forEach((day) => {
+      const col = el('div', 'col');
+      const bar = el('div', 'barv' + (day.count ? '' : ' zero'));
+      bar.style.height = '0%';
+      requestAnimationFrame(() => { bar.style.height = (day.count / top) * 100 + '%'; });
+      col.append(bar);
+      if (day.count) {
+        const v = el('div', 'vlabel num', String(day.count));
+        v.style.bottom = (day.count / top) * 100 + '%';
+        col.append(v);
+      }
+      const label = `${dayFmt(day.date, { weekday: 'long', month: 'short', day: 'numeric' })}: ${plural(day.count, 'no-show')}`;
+      col.setAttribute('aria-label', label);
+      col.tabIndex = 0;
+      const show = () => {
+        tip.replaceChildren(el('b', '', plural(day.count, 'no-show')), ' · ' + dayFmt(day.date, { weekday: 'short', month: 'short', day: 'numeric' }));
+        const cr = col.getBoundingClientRect(), pr = $('chart').getBoundingClientRect();
+        const barTop = 170 - (day.count / top) * 170;
+        tip.style.left = (cr.left - pr.left + cr.width / 2) + 'px';
+        tip.style.top = Math.max(0, barTop - 8) + 'px';
+        tip.style.opacity = 1;
+      };
+      const hide = () => { tip.style.opacity = 0; };
+      col.addEventListener('mouseenter', show); col.addEventListener('focus', show);
+      col.addEventListener('mouseleave', hide); col.addEventListener('blur', hide);
+      cols.append(col);
+    });
+    plot.append(cols);
+
+    const xaxis = $('xaxis'); xaxis.replaceChildren();
+    for (const day of d.days) {
+      const c = el('div', day.date === d.today ? 'today' : '');
+      c.append(el('div', '', day.label), el('div', 'd num', dayFmt(day.date, { month: 'numeric', day: 'numeric' })));
+      xaxis.append(c);
+    }
+    $('chart').setAttribute('aria-label', 'No-shows by day: ' + d.days.map((x) => `${x.label} ${x.count}`).join(', '));
+  }
+
+  function renderClosers(d) {
+    const box = $('closers'); box.replaceChildren();
+    if (!d.closers.length) {
+      const e = el('div', 'empty');
+      e.append(el('div', 'big', d.isCurrentWeek ? 'No no-shows so far this week' : 'No no-shows that week'),
+        el('div', '', 'Closers show up here as soon as a no-show webhook arrives.'));
+      return box.append(e);
+    }
+    const max = d.closers[0].noShows;
+    for (const c of d.closers) {
+      const row = el('div', 'closer');
+      row.append(el('div', 'avatar', initials(c.closer)));
+
+      const mid = el('div');
+      mid.append(el('div', 'cname', c.closer));
+      const r2 = el('div', 'crow2');
+      const track = el('div', 'track'); const fill = el('span'); fill.style.width = '0%';
+      requestAnimationFrame(() => { fill.style.width = (c.noShows / max) * 100 + '%'; });
+      track.append(fill);
+      const strip = el('div', 'strip');
+      c.byDay.forEach((n, i) => {
+        const sq = el('i', n ? 'on' : '');
+        sq.title = `${d.days[i].label}: ${plural(n, 'no-show')}`;
+        strip.append(sq);
+      });
+      strip.setAttribute('aria-label', 'By day: ' + c.byDay.map((n, i) => `${d.days[i].label} ${n}`).join(', '));
+      r2.append(track, strip);
+      mid.append(r2);
+
+      const right = el('div', 'ccount');
+      right.append(el('div', 'n num', String(c.noShows)),
+        el('div', 's', c.followUpsSent === c.noShows ? `${c.followUpsSent}/${c.noShows} followed up` : `${c.noShows - c.followUpsSent} pending`));
+      row.append(mid, right);
+      box.append(row);
+    }
+  }
+
+  function renderFeed(d) {
+    const feed = $('feed'); feed.replaceChildren();
+    if (!d.recent.length) {
+      const li = el('li'); const e = el('div', 'empty');
+      e.style.gridColumn = '1 / -1';
+      e.append(el('div', 'big', 'Nothing to follow up'), el('div', '', 'New no-shows appear here within seconds of the webhook.'));
+      li.append(e); return feed.append(li);
+    }
+    const firstLoad = state.seen === null;
+    const seen = state.seen || new Set();
+    for (const r of d.recent) {
+      const id = r.receivedAt + r.closer + r.appointment;
+      const li = el('li', !firstLoad && !seen.has(id) ? 'fresh' : '');
+      seen.add(id);
+      const ico = el('div', 'ico'); ico.append(icon(ICON.miss));
+      const what = el('div', 'what');
+      const line = el('div'); line.append(el('b', '', r.closer), ' · no-show');
+      what.append(line, el('div', 'when', `Demo ${r.appointment} · received ${ago(r.receivedAt)}`));
+      const pill = el('span', 'pill ' + (r.followUpSent ? 'ok' : 'pending'));
+      pill.append(icon(r.followUpSent ? ICON.check : ICON.clock, 13), r.followUpSent ? 'Slack sent' : 'Retrying');
+      li.append(ico, what, pill);
+      feed.append(li);
+    }
+    state.seen = seen;
+  }
+
+  function render(d) {
+    renderHeader(d); renderKpis(d); renderChart(d); renderClosers(d); renderFeed(d);
+    $('lastEvent').textContent = d.lastReceivedAt ? `Last webhook received ${ago(d.lastReceivedAt)}` : 'No webhooks received yet';
+  }
+
+  // ---------- data ----------
+  function setBanner(msg) {
+    const b = $('banner');
+    if (!msg) { b.hidden = true; return; }
+    b.className = 'banner'; b.replaceChildren(el('span', '', msg));
+    const retry = el('button', 'btn', 'Retry'); retry.onclick = () => load();
+    b.append(retry); b.hidden = false;
   }
 
   async function load() {
-    showState('Loading…');
+    const live = $('live');
     try {
-      const res = await fetch('/api/noshows', { cache: 'no-store' });
+      const q = state.week ? `?week=${encodeURIComponent(state.week)}` : '';
+      const res = await fetch('/api/noshows' + q, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      range.textContent = `Week of ${fmt(data.weekStart)} – ${fmt(data.weekEnd)} (US Eastern, Mon–Sun)`;
-      if (!data.closers.length) return showState('No no-shows recorded this week.');
-
-      const max = Math.max(...data.closers.map((c) => c.noShows));
-      card.replaceChildren();
-      for (const c of data.closers) {
-        const row = el('div', 'row');
-        const left = el('div');
-        left.append(el('div', '', c.closer));
-        const bar = el('div', 'bar');
-        bar.style.width = Math.max(8, (c.noShows / max) * 220) + 'px';
-        left.append(bar);
-        row.append(left, el('div', 'count', String(c.noShows)));
-        card.append(row);
-      }
-      const t = el('div', 'row total');
-      t.append(el('div', '', 'Total'), el('div', '', String(data.total)));
-      card.append(t);
+      const d = await res.json();
+      state.data = d; state.loadedAt = Date.now();
+      setBanner(null);
+      render(d);
+      live.classList.toggle('paused', !d.isCurrentWeek);
+      tick();
     } catch (e) {
-      showState('Could not load no-shows.', true);
+      setBanner(state.data ? 'Lost connection. Showing the last loaded data.' : 'Could not load no-shows. Check that storage is connected, then retry.');
+      live.classList.add('paused');
+      $('liveText').textContent = 'Offline';
     }
   }
+
+  function tick() {
+    if (!state.data) return;
+    $('liveText').textContent = state.data.isCurrentWeek ? `Live · updated ${ago(new Date(state.loadedAt).toISOString())}` : 'Past week';
+  }
+
+  function goTo(week) {
+    state.week = week; state.seen = null;
+    const url = new URL(location.href);
+    if (week) url.searchParams.set('week', week); else url.searchParams.delete('week');
+    history.replaceState(null, '', url);
+    load();
+  }
+
+  $('prev').onclick = () => state.data && goTo(shiftWeek(state.data.weekStart, -1));
+  $('next').onclick = () => {
+    if (!state.data || state.data.isCurrentWeek) return;
+    const n = shiftWeek(state.data.weekStart, 1);
+    goTo(shiftWeek(n, 1) > state.data.today ? null : n); // landing on the current week -> live mode
+  };
+  $('thisWeek').onclick = () => goTo(null);
+
+  setInterval(() => {
+    if (!document.hidden && (!state.data || state.data.isCurrentWeek)) load();
+  }, REFRESH_MS);
+  setInterval(tick, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load();
+})();
 </script>
 </body>
 </html>

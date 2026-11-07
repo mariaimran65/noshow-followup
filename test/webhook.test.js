@@ -31,7 +31,7 @@ test.before(async () => {
 test.after(() => slack.close());
 test.beforeEach(() => { setStore(createMemoryStore()); posts = []; failNext = 0; delayMs = 0; });
 
-function call(handler, { method = 'POST', headers = {}, body } = {}) {
+function call(handler, { method = 'POST', headers = {}, body, query } = {}) {
   return new Promise(async (resolve) => {
     const res = {
       statusCode: 200, headers: {}, body: null,
@@ -39,7 +39,7 @@ function call(handler, { method = 'POST', headers = {}, body } = {}) {
       status(c) { this.statusCode = c; return this; },
       json(b) { this.body = b; resolve(this); return this; },
     };
-    await handler({ method, headers, body }, res);
+    await handler({ method, headers, body, query }, res);
   });
 }
 const withSecret = { 'x-webhook-secret': SECRET };
@@ -152,9 +152,40 @@ test('weekly view counts this week per closer, excludes other weeks, exposes no 
   const r = await call(noshows, { method: 'GET' });
   assert.strictEqual(r.statusCode, 200);
   assert.strictEqual(r.body.total, 3);
-  assert.deepStrictEqual(r.body.closers, [
-    { closer: 'George Toro', noShows: 2 },
-    { closer: 'Yahya', noShows: 1 },
-  ]);
-  assert.ok(!JSON.stringify(r.body).includes('alvarezpools'));
+  assert.strictEqual(r.body.isCurrentWeek, true);
+  assert.strictEqual(r.body.followUpsSent, 3);
+  assert.deepStrictEqual(
+    r.body.closers.map((c) => [c.closer, c.noShows, c.followUpsSent]),
+    [['George Toro', 2, 2], ['Yahya', 1, 1]]
+  );
+  assert.strictEqual(r.body.days.length, 7);
+  assert.strictEqual(r.body.days.reduce((s, d) => s + d.count, 0), 3);
+  assert.strictEqual(r.body.recent.length, 3);
+  const json = JSON.stringify(r.body);
+  for (const pii of ['alvarezpools', 'Alvarez', '5550142']) assert.ok(!json.includes(pii), `leaked ${pii}`);
+});
+
+test('weekly view: ?week= picks a past week (ET days, Mon-Sun) and compares with the week before', async () => {
+  const mk = (id, startTime) => {
+    const b = clone(sample);
+    b.appointment.id = id;
+    b.appointment.startTime = startTime;
+    return b;
+  };
+  await call(webhook, { headers: withSecret, body: mk('w1', '2026-11-02T20:30:00-05:00') }); // Mon 8:30 PM ET (Tue in UTC)
+  await call(webhook, { headers: withSecret, body: mk('w2', '2026-11-08T21:00:00-05:00') }); // Sun 9 PM ET (Mon in UTC)
+  await call(webhook, { headers: withSecret, body: mk('p1', '2026-10-28T10:00:00-04:00') }); // week before
+
+  const r = await call(noshows, { method: 'GET', query: { week: '2026-11-05' } });
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(r.body.weekStart, '2026-11-02');
+  assert.strictEqual(r.body.weekEnd, '2026-11-08');
+  assert.strictEqual(r.body.total, 2);
+  assert.strictEqual(r.body.prevTotal, 1);
+  assert.deepStrictEqual(r.body.days.map((d) => d.count), [1, 0, 0, 0, 0, 0, 1]);
+});
+
+test('weekly view rejects a malformed ?week=', async () => {
+  const r = await call(noshows, { method: 'GET', query: { week: 'yesterday' } });
+  assert.strictEqual(r.statusCode, 400);
 });

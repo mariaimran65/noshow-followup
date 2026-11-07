@@ -6,8 +6,8 @@ shows no-shows per closer for the current week.
 
 ```
 api/webhook.js    POST  receives the webhook
-api/noshows.js    GET   this week's no-shows per closer (counts only)
-public/index.html       the one-page view
+api/noshows.js    GET   weekly no-shows per closer (?week=YYYY-MM-DD for past weeks)
+public/index.html       the one-page dashboard
 lib/              time (US Eastern), storage (Redis REST / in-memory), Slack message
 daily_totals.js         bug-hunt fix
 test/                   16 tests (node --test)
@@ -61,3 +61,22 @@ lose data between serverless invocations.
 - The weekly page is public, so it shows counts only, no contact details. Add auth before showing more.
 - Takeover after a Slack failure is not an atomic compare-and-set; two retries landing in the same millisecond could double-post. Fine at this volume, fix with a Lua script or a queue at scale.
 - No alerting yet when Slack fails repeatedly.
+
+## Security Check command:
+curl -i -X POST https://noshow-followup.vercel.app/api/webhook -H 'Content-Type: application/json' -d @samples/sample_noshow_webhook.json
+
+## New No-Show commmand: 
+sed -e 's/apt_9Kq2LmX81/apt_demo_002/' -e 's/usr_closer_george/usr_closer_yahya/' -e 's/George Toro/Yahya/' -e 's/2026-11-04T19:00/2026-11-06T18:00/' samples/sample_noshow_webhook.json | curl -i -X POST https://noshow-followup.vercel.app/api/webhook -H 'X-Webhook-Secret: trial-secret-7f3a' -H 'Content-Type: application/json' -d @-
+
+
+
+## The dashboard
+
+One page, no build step, no dependencies:
+
+- **Summary:** no-shows this week vs last week, how many Slack follow-ups went out, how many closers had a no-show, and the busiest day.
+- **No-shows by day:** Mon–Sun in US Eastern time, with hover tooltips.
+- **By closer:** ranked, with a 7-day strip and follow-up status for each closer.
+- **Recent no-shows:** shows "Slack sent" or "Retrying" for each event; new events are highlighted when they arrive.
+- **Week navigation:** browse past weeks, and share a week as a link (`?week=`).
+- **Live:** refreshes every 15 seconds while the tab is open; works on phones and in dark mode.
