@@ -28,6 +28,50 @@ Dedupe is one atomic Redis `HSETNX`, plus a short in-flight lease, so even simul
 duplicates produce exactly one Slack message (covered by a test with 5 parallel deliveries).
 A no-show on a rebooked slot has a new `startTime`, so it counts as a new event.
 
+## Try it on the live deployment
+
+Live: https://noshow-followup.vercel.app. Run these from the repo root.
+
+**1. No secret, so it is rejected** (`401`, nothing stored, no Slack post):
+
+```bash
+curl -i -X POST https://noshow-followup.vercel.app/api/webhook \
+  -H 'Content-Type: application/json' \
+  -d @samples/sample_noshow_webhook.json
+```
+
+**2. A new no-show** (`200 {"ok":true,"stored":true,"notified":true}`). This sends the sample with a
+different appointment, closer and time, so it counts as a new event. The dashboard picks it up
+within 15 seconds:
+
+```bash
+sed -e 's/apt_9Kq2LmX81/apt_demo_002/' \
+    -e 's/usr_closer_george/usr_closer_yahya/' \
+    -e 's/George Toro/Yahya/' \
+    -e 's/2026-11-04T19:00/2026-11-06T18:00/' \
+    samples/sample_noshow_webhook.json |
+curl -i -X POST https://noshow-followup.vercel.app/api/webhook \
+  -H 'X-Webhook-Secret: trial-secret-7f3a' \
+  -H 'Content-Type: application/json' \
+  -d @-
+```
+
+**3. The same delivery again** (`200 {"ok":true,"duplicate":true}`, no second Slack post, counts unchanged):
+run command 2 again.
+
+To send another new event, change `apt_demo_002` to any unused id.
+
+## The dashboard
+
+One page, no build step, no dependencies:
+
+- **Summary:** no-shows this week vs last week, how many Slack follow-ups went out, how many closers had a no-show, and the busiest day.
+- **No-shows by day:** Mon–Sun in US Eastern time, with hover tooltips.
+- **By closer:** ranked, with a 7-day strip and follow-up status for each closer.
+- **Recent no-shows:** shows "Slack sent" or "Retrying" for each event; new events are highlighted when they arrive.
+- **Week navigation:** browse past weeks, and share a week as a link (`?week=`).
+- **Live:** refreshes every 15 seconds while the tab is open; works on phones and in dark mode.
+
 ## Run locally
 
 ```bash
@@ -58,25 +102,6 @@ lose data between serverless invocations.
 
 ## Deliberately left out / next
 
-- The weekly page is public, so it shows counts only, no contact details. Add auth before showing more.
+- The weekly page is public, so it shows counts and closer names only, no contact details. Add auth before showing more.
 - Takeover after a Slack failure is not an atomic compare-and-set; two retries landing in the same millisecond could double-post. Fine at this volume, fix with a Lua script or a queue at scale.
 - No alerting yet when Slack fails repeatedly.
-
-## Security Check command:
-curl -i -X POST https://noshow-followup.vercel.app/api/webhook -H 'Content-Type: application/json' -d @samples/sample_noshow_webhook.json
-
-## New No-Show commmand: 
-sed -e 's/apt_9Kq2LmX81/apt_demo_002/' -e 's/usr_closer_george/usr_closer_yahya/' -e 's/George Toro/Yahya/' -e 's/2026-11-04T19:00/2026-11-06T18:00/' samples/sample_noshow_webhook.json | curl -i -X POST https://noshow-followup.vercel.app/api/webhook -H 'X-Webhook-Secret: trial-secret-7f3a' -H 'Content-Type: application/json' -d @-
-
-
-
-## The dashboard
-
-One page, no build step, no dependencies:
-
-- **Summary:** no-shows this week vs last week, how many Slack follow-ups went out, how many closers had a no-show, and the busiest day.
-- **No-shows by day:** Mon–Sun in US Eastern time, with hover tooltips.
-- **By closer:** ranked, with a 7-day strip and follow-up status for each closer.
-- **Recent no-shows:** shows "Slack sent" or "Retrying" for each event; new events are highlighted when they arrive.
-- **Week navigation:** browse past weeks, and share a week as a link (`?week=`).
-- **Live:** refreshes every 15 seconds while the tab is open; works on phones and in dark mode.
